@@ -1,29 +1,61 @@
 import crypto from "node:crypto";
 import Razorpay from "razorpay";
-import { getStoredSettings, type Order, updateOrder, getOrderById } from "./db";
+import {
+  getStoredSettings,
+  type Order,
+  updateOrder,
+  getOrderById,
+} from "./db";
 import { sendOrderConfirmationEmail } from "./email";
 
-export function getRazorpayClient(): {
+type RazorpayPaymentItem = {
+  id: string;
+  status?: string;
+  method?: string;
+  created_at: number;
+  order_id?: string;
+};
+
+type RazorpayWebhookEvent = {
+  event?: string;
+  payload?: {
+    payment?: {
+      entity?: {
+        id?: string;
+        order_id?: string;
+        method?: string;
+      };
+    };
+    order?: {
+      entity?: {
+        id?: string;
+      };
+    };
+  };
+};
+
+export async function getRazorpayClient(): Promise<{
   client: Razorpay | null;
   keyId: string;
   keySecret: string;
   webhookSecret: string;
   mode: "test" | "live";
   error?: string;
-} {
-  const settings = getStoredSettings();
-  const rzp = settings.razorpay || {};
+}> {
+  const settings = await getStoredSettings();
+  const rzp = (settings.razorpay || {}) as Record<string, any>;
   const mode = (rzp.mode === "live" ? "live" : "test") as "test" | "live";
-  const keyId = (rzp.key_id || process.env.RAZORPAY_KEY_ID || "").trim();
-  const keySecret = (
-    rzp.key_secret ||
-    process.env.RAZORPAY_KEY_SECRET ||
-    ""
+
+  const keyId = String(
+    rzp.key_id || process.env.RAZORPAY_KEY_ID || "",
   ).trim();
-  const webhookSecret = (
-    rzp.webhook_secret ||
-    process.env.RAZORPAY_WEBHOOK_SECRET ||
-    ""
+
+  const keySecret = String(
+    rzp.key_secret || process.env.RAZORPAY_KEY_SECRET || "",
+  ).trim();
+
+  const webhookSecret = String(
+    rzp.webhook_secret || process.env.RAZORPAY_WEBHOOK_SECRET || "",
   ).trim();
 
   if (!keyId || !keySecret) {
@@ -43,7 +75,14 @@ export function getRazorpayClient(): {
       key_id: keyId,
       key_secret: keySecret,
     });
-    return { client, keyId, keySecret, webhookSecret, mode };
+
+    return {
+      client,
+      keyId,
+      keySecret,
+      webhookSecret,
+      mode,
+    };
   } catch (err) {
     return {
       client: null,
@@ -73,12 +112,23 @@ export async function createRazorpayOrder(params: {
   keyId?: string;
   error?: string;
 }> {
-  const { client, keyId, error } = getRazorpayClient();
+  const { client, keyId, error } = await getRazorpayClient();
+
   if (!client) {
-    return { success: false, error: error || "Razorpay is not configured" };
+    return {
+      success: false,
+      error: error || "Razorpay is not configured",
+    };
   }
 
   const amountInPaise = Math.round(params.amountInRupees * 100);
+
+  if (!Number.isFinite(amountInPaise) || amountInPaise <= 0) {
+    return {
+      success: false,
+      error: "Invalid payment amount",
+    };
+  }
 
   try {
     const options = {
@@ -94,6 +144,7 @@ export async function createRazorpayOrder(params: {
     };
 
     const rzpOrder = await client.orders.create(options);
+
     return {
       success: true,
       razorpayOrderId: rzpOrder.id,
@@ -102,11 +153,16 @@ export async function createRazorpayOrder(params: {
       keyId,
     };
   } catch (err: unknown) {
-    console.error("[razorpay] Error creating Razorpay order:", err);
+    console.error(
+      "[razorpay] Error creating Razorpay order:",
+      err,
+    );
+
     const errObj = err as {
       error?: { description?: string };
       message?: string;
     };
+
     return {
       success: false,
       error:
@@ -128,9 +184,13 @@ export async function verifyRazorpayPayment(params: {
   order?: Order;
   error?: string;
 }> {
-  const { client, keySecret, error } = getRazorpayClient();
+  const { client, keySecret, error } = await getRazorpayClient();
+
   if (!keySecret) {
-    return { success: false, error: error || "Razorpay key secret not found" };
+    return {
+      success: false,
+      error: error || "Razorpay key secret not found",
+    };
   }
 
   // 1. Verify HMAC-SHA256 signature
@@ -140,30 +200,48 @@ export async function verifyRazorpayPayment(params: {
     .update(body)
     .digest("hex");
 
-  const signatureValid = expectedSignature === params.razorpaySignature;
+  const signatureValid =
+    expectedSignature === params.razorpaySignature;
+
   if (!signatureValid) {
     console.error(
       "[razorpay] Signature verification failed for order",
       params.orderId,
     );
-    updateOrder(params.orderId, { payment_status: "Failed" });
-    return { success: false, error: "Payment verification signature mismatch" };
+
+    await updateOrder(params.orderId, {
+      payment_status: "Failed",
+    });
+
+    return {
+      success: false,
+      error: "Payment verification signature mismatch",
+    };
   }
 
   // 2. Fetch payment details from Razorpay to verify capture status and payment method
   let paymentMethod = "Razorpay";
+
   if (client) {
     try {
       const payment = (await client.payments.fetch(
         params.razorpayPaymentId,
       )) as { status?: string; method?: string };
-      if (payment.status !== "captured" && payment.status !== "authorized") {
-        updateOrder(params.orderId, { payment_status: "Failed" });
+
+      if (
+        payment.status !== "captured" &&
+        payment.status !== "authorized"
+      ) {
+        await updateOrder(params.orderId, {
+          payment_status: "Failed",
+        });
+
         return {
           success: false,
           error: `Payment status is ${payment.status}, not captured.`,
         };
       }
+
       paymentMethod = payment.method
         ? payment.method.toUpperCase()
         : "Razorpay";
@@ -176,12 +254,16 @@ export async function verifyRazorpayPayment(params: {
   }
 
   // 3. Update order
-  const order = getOrderById(params.orderId);
+  const order = await getOrderById(params.orderId);
+
   if (!order) {
-    return { success: false, error: "Order not found" };
+    return {
+      success: false,
+      error: "Order not found",
+    };
   }
 
-  const updated = updateOrder(params.orderId, {
+  const updated = await updateOrder(params.orderId, {
     payment_status: "Paid",
     status: "Confirmed",
     razorpay_payment_id: params.razorpayPaymentId,
@@ -197,7 +279,10 @@ export async function verifyRazorpayPayment(params: {
     );
   }
 
-  return { success: true, order: updated ?? order };
+  return {
+    success: true,
+    order: updated ?? order,
+  };
 }
 
 export async function checkPaymentStatusFromRazorpay(
@@ -209,7 +294,8 @@ export async function checkPaymentStatusFromRazorpay(
   message: string;
   order?: Order;
 }> {
-  const order = getOrderById(orderIdOrNumber);
+  const order = await getOrderById(orderIdOrNumber);
+
   if (!order) {
     return {
       payment_status: "Pending",
@@ -231,12 +317,14 @@ export async function checkPaymentStatusFromRazorpay(
     return {
       payment_status: order.payment_status,
       status: order.status,
-      message: "No Razorpay order ID associated with this order.",
+      message:
+        "No Razorpay order ID associated with this order.",
       order,
     };
   }
 
-  const { client, error } = getRazorpayClient();
+  const { client, error } = await getRazorpayClient();
+
   if (!client) {
     return {
       payment_status: order.payment_status,
@@ -250,18 +338,30 @@ export async function checkPaymentStatusFromRazorpay(
     const paymentsResult = (await client.orders.fetchPayments(
       order.razorpay_order_id,
     )) as { items?: RazorpayPaymentItem[] };
-    const payments: RazorpayPaymentItem[] = paymentsResult.items || [];
 
-    const capturedPayment = payments.find((p) => p.status === "captured");
+    const payments: RazorpayPaymentItem[] =
+      Array.isArray(paymentsResult?.items)
+        ? paymentsResult.items
+        : [];
+
+    const capturedPayment = payments.find(
+      (p) => p.status === "captured",
+    );
+
     if (capturedPayment) {
-      const updated = updateOrder(order.id, {
+      const updated = await updateOrder(order.id, {
         payment_status: "Paid",
-        status: order.status === "Payment Pending" ? "Confirmed" : order.status,
+        status:
+          order.status === "Payment Pending"
+            ? "Confirmed"
+            : order.status,
         razorpay_payment_id: capturedPayment.id,
         razorpay_payment_method: (
           capturedPayment.method || "Razorpay"
         ).toUpperCase(),
-        payment_date: new Date(capturedPayment.created_at * 1000).toISOString(),
+        payment_date: new Date(
+          capturedPayment.created_at * 1000,
+        ).toISOString(),
       });
 
       if (updated && !updated.confirmation_email_sent) {
@@ -279,9 +379,14 @@ export async function checkPaymentStatusFromRazorpay(
     }
 
     const allFailed =
-      payments.length > 0 && payments.every((p) => p.status === "failed");
+      payments.length > 0 &&
+      payments.every((p) => p.status === "failed");
+
     if (allFailed) {
-      const updated = updateOrder(order.id, { payment_status: "Failed" });
+      const updated = await updateOrder(order.id, {
+        payment_status: "Failed",
+      });
+
       return {
         payment_status: "Failed",
         status: order.status,
@@ -297,7 +402,11 @@ export async function checkPaymentStatusFromRazorpay(
       order,
     };
   } catch (err: unknown) {
-    console.error("[razorpay] Error fetching payments for order:", err);
+    console.error(
+      "[razorpay] Error fetching payments for order:",
+      err,
+    );
+
     return {
       payment_status: order.payment_status,
       status: order.status,
@@ -315,7 +424,7 @@ export async function handleRazorpayWebhook(
   signature: string | null,
   baseUrl?: string,
 ): Promise<{ handled: boolean; message: string }> {
-  const { webhookSecret } = getRazorpayClient();
+  const { webhookSecret } = await getRazorpayClient();
 
   if (webhookSecret && signature) {
     const expectedSignature = crypto
@@ -324,31 +433,48 @@ export async function handleRazorpayWebhook(
       .digest("hex");
 
     if (expectedSignature !== signature) {
-      return { handled: false, message: "Invalid webhook signature" };
+      return {
+        handled: false,
+        message: "Invalid webhook signature",
+      };
     }
   }
 
   let event: RazorpayWebhookEvent;
+
   try {
     event = JSON.parse(rawBody) as RazorpayWebhookEvent;
   } catch {
-    return { handled: false, message: "Invalid JSON" };
+    return {
+      handled: false,
+      message: "Invalid JSON",
+    };
   }
 
   const eventName = event.event;
-  console.log(`[razorpay webhook] Received event: ${eventName}`);
+  console.log(
+    `[razorpay webhook] Received event: ${eventName}`,
+  );
 
-  if (eventName === "payment.captured" || eventName === "order.paid") {
+  if (
+    eventName === "payment.captured" ||
+    eventName === "order.paid"
+  ) {
     const payment = event.payload?.payment?.entity;
-    const rzpOrderId = payment?.order_id || event.payload?.order?.entity?.id;
+    const rzpOrderId =
+      payment?.order_id ||
+      event.payload?.order?.entity?.id;
 
     if (rzpOrderId) {
-      const order = getOrderById(rzpOrderId);
+      const order = await getOrderById(rzpOrderId);
+
       if (order && order.payment_status !== "Paid") {
-        const updated = updateOrder(order.id, {
+        const updated = await updateOrder(order.id, {
           payment_status: "Paid",
           status:
-            order.status === "Payment Pending" ? "Confirmed" : order.status,
+            order.status === "Payment Pending"
+              ? "Confirmed"
+              : order.status,
           razorpay_payment_id: payment?.id,
           razorpay_payment_method: (
             payment?.method || "Razorpay"
@@ -358,12 +484,18 @@ export async function handleRazorpayWebhook(
 
         if (updated && !updated.confirmation_email_sent) {
           sendOrderConfirmationEmail(updated, baseUrl).catch((e) =>
-            console.error("[webhook] Email send error:", e),
+            console.error(
+              "[webhook] Email send error:",
+              e,
+            ),
           );
         }
       }
     }
   }
 
-  return { handled: true, message: "Processed" };
+  return {
+    handled: true,
+    message: "Processed",
+  };
 }
