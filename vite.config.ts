@@ -1,15 +1,12 @@
-import { defineConfig } from "vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import { nitro } from "nitro/vite";
-import viteReact from "@vitejs/plugin-react";
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  plugins: [
-    tanstackStart(),
-    nitro(),
-    viteReact(),
-  ],
-
+  tanstackStart: {
+    server: { entry: "server" },
+  },
+  nitro: {
+    preset: "vercel",
+  },
   server: {
     host: "0.0.0.0",
     port: 3000,
