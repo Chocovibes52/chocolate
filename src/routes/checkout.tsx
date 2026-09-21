@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { RotateCw, ShieldCheck, AlertCircle } from "lucide-react";
 import { formatINR, useCart } from "@/lib/cart-context";
@@ -53,7 +53,78 @@ function Checkout() {
   const [busy, setBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [shippingSettings, setShippingSettings] = useState<{
+    free_shipping_threshold: number;
+    standard_shipping_fee: number;
+    default_courier?: string;
+  }>({
+    free_shipping_threshold: 999,
+    standard_shipping_fee: 99,
+  });
+  const [shippingSettingsLoaded, setShippingSettingsLoaded] = useState(false);
   const nav = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadShippingSettings = async () => {
+      try {
+        const response = await fetch("/api/shipping-settings", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data?.ok || !data?.shipping) {
+          throw new Error(data?.error || "Failed to load shipping settings");
+        }
+
+        const threshold = Number(data.shipping.free_shipping_threshold);
+        const fee = Number(data.shipping.standard_shipping_fee);
+
+        if (!cancelled) {
+          setShippingSettings({
+            free_shipping_threshold:
+              Number.isFinite(threshold) && threshold >= 0 ? threshold : 999,
+            standard_shipping_fee:
+              Number.isFinite(fee) && fee >= 0 ? fee : 99,
+            default_courier:
+              typeof data.shipping.default_courier === "string"
+                ? data.shipping.default_courier
+                : "DTDC",
+          });
+          setShippingSettingsLoaded(true);
+        }
+      } catch (error) {
+        console.error("Failed to load shipping settings:", error);
+
+        if (!cancelled) {
+          setShippingSettingsLoaded(true);
+        }
+      }
+    };
+
+    loadShippingSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const shippingFee = useMemo(() => {
+    if (!shippingSettingsLoaded) return null;
+
+    return subtotal >= shippingSettings.free_shipping_threshold
+      ? 0
+      : shippingSettings.standard_shipping_fee;
+  }, [shippingSettingsLoaded, shippingSettings, subtotal]);
+
+  const checkoutTotal = useMemo(() => {
+    if (shippingFee === null) return null;
+    return subtotal + shippingFee;
+  }, [shippingFee, subtotal]);
 
   if (items.length === 0 && !pendingOrderId) {
     return (
@@ -73,6 +144,12 @@ function Checkout() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!shippingSettingsLoaded) {
+      setPaymentError("Loading current shipping settings. Please try again in a moment.");
+      return;
+    }
+
     setBusy(true);
     setPaymentError(null);
 
@@ -98,7 +175,10 @@ function Checkout() {
       // 1. Check stock & create order server-side with Razorpay
       const createRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         body: JSON.stringify({
           items: cartPayload,
           customer,
@@ -388,13 +468,17 @@ function Checkout() {
             <div className="flex justify-between text-muted-foreground">
               <span>Shipping</span>
               <span className="text-accent font-medium">
-                {subtotal >= 999 ? "Free" : "₹99"}
+                {shippingFee === null
+                  ? "Loading…"
+                  : shippingFee === 0
+                    ? "Free"
+                    : formatINR(shippingFee)}
               </span>
             </div>
             <div className="flex justify-between font-display text-2xl text-primary pt-3 border-t border-border font-bold">
               <span>Total</span>
               <span>
-                {formatINR(subtotal >= 999 ? subtotal : subtotal + 99)}
+                {checkoutTotal === null ? "…" : formatINR(checkoutTotal)}
               </span>
             </div>
           </div>
@@ -409,8 +493,10 @@ function Checkout() {
                 <RotateCw size={16} className="animate-spin" />
                 Processing…
               </>
+            ) : checkoutTotal === null ? (
+              "Loading shipping…"
             ) : (
-              `Pay Now (${formatINR(subtotal >= 999 ? subtotal : subtotal + 99)})`
+              `Pay Now (${formatINR(checkoutTotal)})`
             )}
           </button>
 
