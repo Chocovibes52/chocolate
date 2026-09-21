@@ -213,15 +213,15 @@ export async function handleApiRequest(
         const lineTotal = prod.price * qty;
         subtotal += lineTotal;
 
-        orderItems.push({
-          id: `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          order_id: "",
-          product_slug: item.product_slug,
-          product_name: prod.name,
-          unit_price: prod.price,
-          quantity: qty,
-          line_total: lineTotal,
-        });
+      orderItems.push({
+  id: crypto.randomUUID(),
+  order_id: "",
+  product_slug: item.product_slug,
+  product_name: prod.name,
+  unit_price: prod.price,
+  quantity: qty,
+  line_total: lineTotal,
+});
       }
 
       if (payment_method && payment_method !== "Razorpay") {

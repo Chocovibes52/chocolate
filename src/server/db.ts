@@ -589,12 +589,10 @@ export async function createOrder(
 
   if (items.length > 0) {
     const itemRows = items.map(
-      (item) => ({
-        id:
-          item.id ||
-          crypto.randomUUID(),
+  (item) => ({
+    id: crypto.randomUUID(),
 
-        order_id: id,
+    order_id: id,
 
         product_slug:
           item.product_slug,
