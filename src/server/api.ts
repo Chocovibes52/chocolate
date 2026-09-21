@@ -236,7 +236,7 @@ export async function handleApiRequest(
       }
 
       // Shipping calculation
-      const settings = getStoredSettings();
+      const settings = await getStoredSettings();
       const shippingSettings = settings.shipping || {};
       const threshold = Number(shippingSettings.free_shipping_threshold) || 999;
       const shippingFee =
@@ -246,7 +246,7 @@ export async function handleApiRequest(
       const total = subtotal + shippingFee;
 
       // Online Razorpay order creation
-      const created = createOrder({
+      const created = await createOrder({
         user_id: customer.user_id || null,
         customer_name: customer.name.trim(),
         customer_email: customer.email.trim(),
@@ -268,9 +268,6 @@ export async function handleApiRequest(
         items: orderItems,
       });
 
-      // Update order_id on items
-      created.items.forEach((i) => (i.order_id = created.id));
-
       const rzpResult = await createRazorpayOrder({
         amountInRupees: total,
         orderNumber: created.order_number,
@@ -281,7 +278,7 @@ export async function handleApiRequest(
 
       if (!rzpResult.success || !rzpResult.razorpayOrderId) {
         // If Razorpay creation fails, mark order as Failed
-        updateOrder(created.id, {
+        await updateOrder(created.id, {
           payment_status: "Failed",
           status: "Cancelled",
         });
@@ -300,7 +297,7 @@ export async function handleApiRequest(
       const currency = rzpResult.currency;
       const keyId = rzpResult.keyId;
 
-      updateOrder(created.id, { razorpay_order_id: razorpayOrderId });
+      await updateOrder(created.id, { razorpay_order_id: razorpayOrderId });
 
       return json({
         ok: true,
@@ -418,7 +415,7 @@ export async function handleApiRequest(
         markAsDelivered,
       } = body;
 
-      const order = getOrderById(orderId);
+      const order = await getOrderById(orderId);
       if (!order) {
         return json({ ok: false, error: "Order not found" }, 404);
       }
@@ -450,7 +447,7 @@ export async function handleApiRequest(
         patch.delivered_at = new Date().toISOString();
       }
 
-      const updated = updateOrder(orderId, patch);
+      const updated = await updateOrder(orderId, patch);
 
       // Trigger shipping email if newly marked as shipped
       if (markAsShipped && updated && !updated.shipped_email_sent) {
@@ -481,14 +478,14 @@ export async function handleApiRequest(
 
   // 5. GET /api/orders
   if (pathname === "/api/orders" && method === "GET") {
-    const orders = getAllOrders();
+    const orders = await getAllOrders();
     return json({ ok: true, orders });
   }
 
   // 6. GET /api/orders/:id
   if (pathname.startsWith("/api/orders/") && method === "GET") {
     const id = pathname.replace("/api/orders/", "");
-    const order = getOrderById(id);
+    const order = await getOrderById(id);
     if (!order) {
       return json({ ok: false, error: "Order not found" }, 404);
     }
@@ -498,7 +495,7 @@ export async function handleApiRequest(
   // 7. GET /api/user/orders
   if (pathname === "/api/user/orders" && method === "GET") {
     const userIdOrEmail = url.searchParams.get("user") || "";
-    const orders = getUserOrders(userIdOrEmail);
+    const orders = await getUserOrders(userIdOrEmail);
     return json({ ok: true, orders });
   }
 
@@ -532,7 +529,7 @@ export async function handleApiRequest(
         );
       }
 
-      const order = getOrderById(orderNumber);
+      const order = await getOrderById(orderNumber);
       if (!order) {
         return json(
           {
@@ -570,7 +567,7 @@ export async function handleApiRequest(
 
   // 8. GET /api/admin/settings
   if (pathname === "/api/admin/settings" && method === "GET") {
-    const settings = getStoredSettings();
+    const settings = await getStoredSettings();
     const rzp = (settings.razorpay || {}) as Record<string, unknown>;
     const smtp = (settings.smtp || {}) as Record<string, unknown>;
     // Mask sensitive secrets for UI display
@@ -608,7 +605,7 @@ export async function handleApiRequest(
       if (!key) return json({ ok: false, error: "Missing key" }, 400);
 
       // Merge secrets so "••••••••" doesn't overwrite real secrets
-      const current = getStoredSettings();
+      const current = await getStoredSettings();
       let mergedValue: unknown = value;
       const currRzp = (current.razorpay || {}) as Record<string, unknown>;
       const currSmtp = (current.smtp || {}) as Record<string, unknown>;
@@ -641,7 +638,7 @@ export async function handleApiRequest(
         };
       }
 
-      saveStoredSettings(key, mergedValue);
+      await saveStoredSettings(key, mergedValue);
       return json({ ok: true, message: "Settings saved" });
     } catch (err: unknown) {
       return json(
