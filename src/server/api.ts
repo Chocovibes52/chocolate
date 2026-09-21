@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import {
   getAllOrders,
   getOrderById,
@@ -6,6 +8,8 @@ import {
   updateOrder,
   getStoredSettings,
   saveStoredSettings,
+  getShippingSettings,
+  calculateShippingFee,
   type Order,
   type OrderItem,
 } from "./db";
@@ -160,6 +164,26 @@ export async function handleApiRequest(
     });
   }
 
+  // Public shipping settings used by checkout display
+  if (pathname === "/api/shipping-settings" && method === "GET") {
+    try {
+      const shipping = await getShippingSettings();
+      return json({ ok: true, shipping });
+    } catch (err: unknown) {
+      console.error("[api] shipping-settings error:", err);
+      return json(
+        {
+          ok: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : "Failed to load shipping settings",
+        },
+        500,
+      );
+    }
+  }
+
   // 1. POST /api/razorpay/create-order
   if (pathname === "/api/razorpay/create-order" && method === "POST") {
     try {
@@ -213,15 +237,15 @@ export async function handleApiRequest(
         const lineTotal = prod.price * qty;
         subtotal += lineTotal;
 
-      orderItems.push({
-  id: crypto.randomUUID(),
-  order_id: "",
-  product_slug: item.product_slug,
-  product_name: prod.name,
-  unit_price: prod.price,
-  quantity: qty,
-  line_total: lineTotal,
-});
+        orderItems.push({
+          id: crypto.randomUUID(),
+          order_id: "",
+          product_slug: item.product_slug,
+          product_name: prod.name,
+          unit_price: prod.price,
+          quantity: qty,
+          line_total: lineTotal,
+        });
       }
 
       if (payment_method && payment_method !== "Razorpay") {
@@ -235,14 +259,12 @@ export async function handleApiRequest(
         );
       }
 
-      // Shipping calculation
-      const settings = await getStoredSettings();
-      const shippingSettings = settings.shipping || {};
-      const threshold = Number(shippingSettings.free_shipping_threshold) || 999;
-      const shippingFee =
-        subtotal >= threshold
-          ? 0
-          : Number(shippingSettings.standard_shipping_fee) || 99;
+      // Server-side shipping calculation from Admin Settings / Supabase
+      const shippingSettings = await getShippingSettings();
+      const shippingFee = calculateShippingFee(
+        subtotal,
+        shippingSettings,
+      );
       const total = subtotal + shippingFee;
 
       // Online Razorpay order creation
@@ -262,7 +284,7 @@ export async function handleApiRequest(
         payment_status: "Pending",
         status: "Payment Pending",
         notes: customer.notes || null,
-        courier: "DTDC",
+        courier: shippingSettings.default_courier,
         tracking_id: "",
         tracking_url: "",
         items: orderItems,
@@ -635,6 +657,22 @@ export async function handleApiRequest(
           from_email: value.from_email || "",
           from_name: value.from_name || "",
           secure: Boolean(value.secure),
+        };
+      } else if (key === "shipping" && value) {
+        const threshold = Number(value.free_shipping_threshold);
+        const fee = Number(value.standard_shipping_fee);
+
+        mergedValue = {
+          free_shipping_threshold:
+            Number.isFinite(threshold) && threshold >= 0
+              ? threshold
+              : 999,
+          standard_shipping_fee:
+            Number.isFinite(fee) && fee >= 0
+              ? fee
+              : 99,
+          default_courier:
+            String(value.default_courier || "DTDC").trim() || "DTDC",
         };
       }
 
