@@ -1,0 +1,6 @@
+{
+  "name": "ChocoVibes — Artisan Chocolate Energy Bars & Gift Hampers",
+  "description": "Small-batch, single-origin chocolate crafted with obsession. Shop premium energy bars, curated gift hampers, and corporate gifting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

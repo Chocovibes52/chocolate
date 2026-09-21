@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DGeXAQPT.js";import{r as t}from"./index-Cex3M2RF.js";var n=e(),r=()=>(0,n.jsx)(t,{category:`gift-hampers`,title:`Gift Hampers`,subtitle:`Curated boxes, hand-finished for the moments that matter.`});export{r as component};

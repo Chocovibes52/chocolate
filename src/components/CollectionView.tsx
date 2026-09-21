@@ -14,7 +14,8 @@ export const FLAVOURS: { key: Flavour; label: string }[] = [
 ];
 
 export function detectFlavour(p: Product): Flavour {
-  const hay = `${p.name} ${p.shortDescription ?? ""} ${p.fullDescription ?? ""} ${p.ingredients ?? ""}`.toLowerCase();
+  const hay =
+    `${p.name} ${p.shortDescription ?? ""} ${p.fullDescription ?? ""} ${p.ingredients ?? ""}`.toLowerCase();
   if (/\bwhite\b/.test(hay)) return "white";
   if (/\bmilk\b/.test(hay)) return "milk";
   return "dark";
@@ -56,21 +57,43 @@ export function CollectionView({
 
   const filtered = useMemo(() => {
     let list = products.filter((p) => (p.salePrice ?? p.price) <= max);
-    if (showFlavour && flavour !== "all") list = list.filter((p) => detectFlavour(p) === flavour);
+    if (showFlavour && flavour !== "all")
+      list = list.filter((p) => detectFlavour(p) === flavour);
     if (inStockOnly) list = list.filter((p) => p.inStock);
     if (onSaleOnly) list = list.filter((p) => p.salePrice != null);
     if (query) {
       const q = query.toLowerCase();
       list = list.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.shortDescription?.toLowerCase().includes(q),
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.shortDescription?.toLowerCase().includes(q),
       );
     }
-    if (sort === "asc") list = [...list].sort((a, b) => (a.salePrice ?? a.price) - (b.salePrice ?? b.price));
-    else if (sort === "desc") list = [...list].sort((a, b) => (b.salePrice ?? b.price) - (a.salePrice ?? a.price));
-    else if (sort === "name") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    else list = [...list].sort((a, b) => Number(!!b.bestSeller) - Number(!!a.bestSeller));
+    if (sort === "asc")
+      list = [...list].sort(
+        (a, b) => (a.salePrice ?? a.price) - (b.salePrice ?? b.price),
+      );
+    else if (sort === "desc")
+      list = [...list].sort(
+        (a, b) => (b.salePrice ?? b.price) - (a.salePrice ?? a.price),
+      );
+    else if (sort === "name")
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    else
+      list = [...list].sort(
+        (a, b) => Number(!!b.bestSeller) - Number(!!a.bestSeller),
+      );
     return list;
-  }, [products, max, flavour, showFlavour, inStockOnly, onSaleOnly, query, sort]);
+  }, [
+    products,
+    max,
+    flavour,
+    showFlavour,
+    inStockOnly,
+    onSaleOnly,
+    query,
+    sort,
+  ]);
 
   useEffect(() => {
     setPage(1);
@@ -80,17 +103,29 @@ export function CollectionView({
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeChips = [
-    showFlavour && flavour !== "all" ? { label: FLAVOURS.find((f) => f.key === flavour)!.label, clear: () => setFlavour("all") } : null,
-    inStockOnly ? { label: "In stock", clear: () => setInStockOnly(false) } : null,
+    showFlavour && flavour !== "all"
+      ? {
+          label: FLAVOURS.find((f) => f.key === flavour)!.label,
+          clear: () => setFlavour("all"),
+        }
+      : null,
+    inStockOnly
+      ? { label: "In stock", clear: () => setInStockOnly(false) }
+      : null,
     onSaleOnly ? { label: "On sale", clear: () => setOnSaleOnly(false) } : null,
-    max < 5000 ? { label: `Under ${formatINR(max)}`, clear: () => setMax(5000) } : null,
+    max < 5000
+      ? { label: `Under ${formatINR(max)}`, clear: () => setMax(5000) }
+      : null,
     query ? { label: `“${query}”`, clear: () => setQuery("") } : null,
   ].filter(Boolean) as { label: string; clear: () => void }[];
 
   const filterPanel = (
     <div className="space-y-8">
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -104,7 +139,10 @@ export function CollectionView({
           <div className="eyebrow mb-3">Flavour</div>
           <div className="space-y-2">
             {FLAVOURS.map((f) => (
-              <label key={f.key} className="flex cursor-pointer items-center gap-2 text-sm text-primary">
+              <label
+                key={f.key}
+                className="flex cursor-pointer items-center gap-2 text-sm text-primary"
+              >
                 <input
                   type="radio"
                   name="flavour"
@@ -130,7 +168,9 @@ export function CollectionView({
           onChange={(e) => setMax(Number(e.target.value))}
           className="w-full accent-[var(--gold)]"
         />
-        <div className="mt-2 text-xs text-muted-foreground">Up to {formatINR(max)}</div>
+        <div className="mt-2 text-xs text-muted-foreground">
+          Up to {formatINR(max)}
+        </div>
       </div>
 
       <div>
@@ -162,8 +202,12 @@ export function CollectionView({
       <section className="bg-secondary py-16 md:py-20">
         <div className="container-luxe text-center">
           <div className="eyebrow">{eyebrow}</div>
-          <h1 className="mt-3 font-display text-5xl text-primary md:text-6xl">{title}</h1>
-          <p className="mx-auto mt-4 max-w-xl text-muted-foreground">{subtitle}</p>
+          <h1 className="mt-3 font-display text-5xl text-primary md:text-6xl">
+            {title}
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+            {subtitle}
+          </p>
         </div>
       </section>
 
@@ -181,7 +225,9 @@ export function CollectionView({
                   <SlidersHorizontal size={13} /> Filter
                 </button>
                 <span className="text-sm text-muted-foreground">
-                  {isLoading ? "Loading…" : `${filtered.length} product${filtered.length === 1 ? "" : "s"}`}
+                  {isLoading
+                    ? "Loading…"
+                    : `${filtered.length} product${filtered.length === 1 ? "" : "s"}`}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -230,14 +276,21 @@ export function CollectionView({
             )}
 
             {isLoading ? (
-              <div className={`grid gap-6 sm:grid-cols-2 ${dense ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+              <div
+                className={`grid gap-6 sm:grid-cols-2 ${dense ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}
+              >
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="aspect-[4/5] animate-pulse rounded-2xl bg-card" />
+                  <div
+                    key={i}
+                    className="aspect-[4/5] animate-pulse rounded-2xl bg-card"
+                  />
                 ))}
               </div>
             ) : visible.length ? (
               <>
-                <div className={`grid gap-6 sm:grid-cols-2 ${dense ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+                <div
+                  className={`grid gap-6 sm:grid-cols-2 ${dense ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}
+                >
                   {visible.map((p) => (
                     <ProductCard key={p.slug} product={p} />
                   ))}
@@ -271,16 +324,25 @@ export function CollectionView({
 
       {filtersOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-foreground/40" onClick={() => setFiltersOpen(false)} />
+          <div
+            className="absolute inset-0 bg-foreground/40"
+            onClick={() => setFiltersOpen(false)}
+          />
           <div className="absolute inset-y-0 left-0 w-80 max-w-[85%] overflow-y-auto bg-background p-6">
             <div className="mb-6 flex items-center justify-between">
               <span className="eyebrow">Filters</span>
-              <button onClick={() => setFiltersOpen(false)} aria-label="Close filters">
+              <button
+                onClick={() => setFiltersOpen(false)}
+                aria-label="Close filters"
+              >
                 <X size={18} className="text-primary" />
               </button>
             </div>
             {filterPanel}
-            <button onClick={() => setFiltersOpen(false)} className="btn-cocoa mt-8 w-full">
+            <button
+              onClick={() => setFiltersOpen(false)}
+              className="btn-cocoa mt-8 w-full"
+            >
               Show {filtered.length} results
             </button>
           </div>

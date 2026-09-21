@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 type Tone = "neutral" | "success" | "warning" | "critical" | "info";
 
 const toneClass: Record<Tone, string> = {
-  neutral: "bg-muted text-muted-foreground border-border",
+  neutral: "bg-slate-100 text-slate-700 border-slate-200",
   success: "bg-emerald-50 text-emerald-700 border-emerald-200",
   warning: "bg-amber-50 text-amber-700 border-amber-200",
-  critical: "bg-red-50 text-red-700 border-red-200",
+  critical: "bg-rose-50 text-rose-700 border-rose-200",
   info: "bg-sky-50 text-sky-700 border-sky-200",
 };
 
@@ -34,17 +34,19 @@ export function Badge({
 }
 
 export function statusTone(status: string): Tone {
-  switch (status) {
+  switch (status?.toLowerCase()) {
     case "paid":
     case "delivered":
     case "closed":
       return "success";
     case "processing":
+    case "packed":
     case "shipped":
     case "contacted":
       return "info";
     case "pending":
     case "new":
+    case "out for delivery":
       return "warning";
     case "failed":
     case "cancelled":
@@ -67,15 +69,25 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          {title}
+        </h1>
+        {description && (
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
 }
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return <div className={cn("admin-card", className)}>{children}</div>;
 }
 

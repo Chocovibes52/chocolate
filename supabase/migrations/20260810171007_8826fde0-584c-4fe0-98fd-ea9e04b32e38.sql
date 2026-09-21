@@ -1,1 +1,0 @@
-INSERT INTO public.categories (slug, name, description, sort_order) VALUES ('shop', 'Shop', 'All ChocoVibes chocolates', 3) ON CONFLICT (slug) DO NOTHING;

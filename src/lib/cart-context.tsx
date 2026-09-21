@@ -1,9 +1,18 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { Product } from "./products";
 
-export type CartItem = { product: Product; qty: number };
+export interface CartItem {
+  product: Product;
+  qty: number;
+}
 
-type CartCtx = {
+interface CartContextValue {
   items: CartItem[];
   add: (p: Product, qty?: number) => void;
   remove: (slug: string) => void;
@@ -11,12 +20,12 @@ type CartCtx = {
   clear: () => void;
   count: number;
   subtotal: number;
-};
+}
 
-const Ctx = createContext<CartCtx | null>(null);
+const Ctx = createContext<CartContextValue | null>(null);
 const STORAGE = "cacao-noir-cart";
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
@@ -24,7 +33,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const raw = localStorage.getItem(STORAGE);
       if (raw) setItems(JSON.parse(raw));
-    } catch { /* noop */ }
+    } catch {
+      // ignore storage error
+    }
     setHydrated(true);
   }, []);
 
@@ -32,19 +43,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (hydrated) localStorage.setItem(STORAGE, JSON.stringify(items));
   }, [items, hydrated]);
 
-  const value = useMemo<CartCtx>(() => ({
-    items,
-    add: (p, qty = 1) => setItems((prev) => {
-      const found = prev.find((i) => i.product.slug === p.slug);
-      if (found) return prev.map((i) => i.product.slug === p.slug ? { ...i, qty: i.qty + qty } : i);
-      return [...prev, { product: p, qty }];
+  const value = useMemo(
+    () => ({
+      items,
+      add: (p: Product, qty = 1) =>
+        setItems((prev) => {
+          if (prev.find((i) => i.product.slug === p.slug)) {
+            return prev.map((i) =>
+              i.product.slug === p.slug ? { ...i, qty: i.qty + qty } : i,
+            );
+          }
+          return [...prev, { product: p, qty }];
+        }),
+      remove: (slug: string) =>
+        setItems((prev) => prev.filter((i) => i.product.slug !== slug)),
+      update: (slug: string, qty: number) =>
+        setItems((prev) =>
+          prev.map((i) =>
+            i.product.slug === slug ? { ...i, qty: Math.max(1, qty) } : i,
+          ),
+        ),
+      clear: () => setItems([]),
+      count: items.reduce((n, i) => n + i.qty, 0),
+      subtotal: items.reduce(
+        (n, i) => n + (i.product.salePrice ?? i.product.price) * i.qty,
+        0,
+      ),
     }),
-    remove: (slug) => setItems((prev) => prev.filter((i) => i.product.slug !== slug)),
-    update: (slug, qty) => setItems((prev) => prev.map((i) => i.product.slug === slug ? { ...i, qty: Math.max(1, qty) } : i)),
-    clear: () => setItems([]),
-    count: items.reduce((n, i) => n + i.qty, 0),
-    subtotal: items.reduce((n, i) => n + (i.product.salePrice ?? i.product.price) * i.qty, 0),
-  }), [items]);
+    [items],
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -55,4 +82,4 @@ export function useCart() {
   return c;
 }
 
-export const formatINR = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+export const formatINR = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;

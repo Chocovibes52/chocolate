@@ -1,20 +1,63 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { LogIn, UserPlus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
-import { useAuth } from "@/lib/auth";
+import { createLovableAuth } from "@lovable.dev/cloud-auth-js";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — ChocoVibes" },
-      { name: "description", content: "Sign in or create your ChocoVibes account." },
+      { title: "Sign In / Register — ChocoVibes" },
+      {
+        name: "description",
+        content:
+          "Sign in to track orders, save favourites, and check out faster.",
+      },
+      { property: "og:title", content: "Sign In / Register — ChocoVibes" },
     ],
   }),
   component: AuthPage,
 });
+
+type OAuthOptions = {
+  redirect_uri?: string;
+  extraParams?: Record<string, string>;
+};
+
+interface LovableAuthClient {
+  signInWithOAuth: (
+    provider: string,
+    opts?: OAuthOptions,
+  ) => Promise<{
+    redirected?: boolean;
+    error?: unknown;
+    tokens?: { access_token: string; refresh_token: string };
+  }>;
+}
+
+const lovableAuth = createLovableAuth() as unknown as LovableAuthClient;
+const lovable = {
+  auth: {
+    signInWithOAuth: async (provider: string, opts?: OAuthOptions) => {
+      const result = await lovableAuth.signInWithOAuth(provider, {
+        redirect_uri: opts?.redirect_uri,
+        extraParams: { ...opts?.extraParams },
+      });
+      if (result.redirected) return result;
+      if (result.error) return result;
+      try {
+        if (result.tokens) {
+          await supabase.auth.setSession(result.tokens);
+        }
+      } catch (e) {
+        return { error: e instanceof Error ? e : new Error(String(e)) };
+      }
+      return result;
+    },
+  },
+};
 
 async function routeForUser(userId: string): Promise<"/admin" | "/account"> {
   const { data } = await supabase
@@ -54,9 +97,14 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Account created. Check your email if confirmation is required.");
+        toast.success(
+          "Account created. Check your email if confirmation is required.",
+        );
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
         toast.success("Welcome back.");
         const to = data.user ? await routeForUser(data.user.id) : "/account";
@@ -75,7 +123,14 @@ function AuthPage() {
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
       });
-      if (result.error) toast.error(result.error.message ?? "Google sign-in failed");
+      if (result.error) {
+        // Fallback to standard supabase oauth if lovable proxy not configured
+        const { error: sbErr } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin },
+        });
+        if (sbErr) toast.error(sbErr.message);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
@@ -106,13 +161,17 @@ function AuthPage() {
       </button>
 
       <div className="mt-6 flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-        <div className="flex-1 h-px bg-border" /> or <div className="flex-1 h-px bg-border" />
+        <div className="flex-1 h-px bg-border" />
+        or
+        <div className="flex-1 h-px bg-border" />
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {mode === "signup" && (
           <label className="block">
-            <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Full name</span>
+            <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Full name
+            </span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -122,7 +181,9 @@ function AuthPage() {
           </label>
         )}
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Email</span>
+          <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            Email
+          </span>
           <input
             type="email"
             value={email}
@@ -132,7 +193,9 @@ function AuthPage() {
           />
         </label>
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Password</span>
+          <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            Password
+          </span>
           <input
             type="password"
             value={password}
@@ -143,12 +206,22 @@ function AuthPage() {
           />
         </label>
         <button type="submit" disabled={busy} className="btn-cocoa w-full">
-          {mode === "signin" ? <><LogIn size={14} /> Sign in</> : <><UserPlus size={14} /> Create account</>}
+          {mode === "signin" ? (
+            <>
+              <LogIn size={14} /> Sign in
+            </>
+          ) : (
+            <>
+              <UserPlus size={14} /> Create account
+            </>
+          )}
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        {mode === "signin" ? "New to ChocoVibes? " : "Already have an account? "}
+        {mode === "signin"
+          ? "New to ChocoVibes? "
+          : "Already have an account? "}
         <button
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="text-accent hover:underline"
@@ -158,7 +231,9 @@ function AuthPage() {
       </p>
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-primary">Continue browsing</Link>
+        <Link to="/" className="hover:text-primary">
+          Continue browsing
+        </Link>
       </p>
     </main>
   );

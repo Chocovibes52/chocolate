@@ -3,7 +3,15 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, CreditCard, Truck, Save, Eye, EyeOff } from "lucide-react";
+import {
+  Mail,
+  CreditCard,
+  Truck,
+  Save,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+} from "lucide-react";
 
 export const Route = createFileRoute("/admin/settings")({
   component: AdminSettings,
@@ -33,6 +41,9 @@ type ShippingSettings = {
   pickup_pincode: string;
   default_weight_g: number;
   enabled: boolean;
+  free_shipping_threshold?: number;
+  standard_shipping_fee?: number;
+  default_courier?: string;
 };
 
 function AdminSettings() {
@@ -40,11 +51,31 @@ function AdminSettings() {
   const { data, isLoading } = useQuery({
     queryKey: ["app_settings"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("app_settings").select("key, value");
-      if (error) throw error;
-      const map: Record<string, any> = {};
-      for (const r of data ?? []) map[r.key] = r.value;
-      return map;
+      let serverSettings: Record<string, unknown> = {};
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (res.ok) {
+          const sData = await res.json();
+          if (sData.ok && sData.settings) {
+            serverSettings = sData.settings as Record<string, unknown>;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load from /api/admin/settings:", err);
+      }
+
+      try {
+        const { data: dbData } = await supabase
+          .from("app_settings")
+          .select("key, value");
+        for (const r of dbData ?? []) {
+          if (!serverSettings[r.key]) serverSettings[r.key] = r.value;
+        }
+      } catch (err) {
+        console.warn("Could not load from app_settings:", err);
+      }
+
+      return serverSettings;
     },
   });
 
@@ -57,13 +88,24 @@ function AdminSettings() {
       <div>
         <h2 className="font-serif text-2xl text-primary">Settings</h2>
         <p className="text-sm text-primary/60">
-          Configure SMTP email, Razorpay payments, and shipping integration. Values are stored securely and only accessible to admins.
+          Configure real Razorpay payments, SMTP email delivery, and DTDC
+          courier dispatch. Values are stored securely server-side and never
+          exposed to customers.
         </p>
       </div>
 
-      <SmtpCard initial={data?.smtp} onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })} />
-      <RazorpayCard initial={data?.razorpay} onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })} />
-      <ShippingCard initial={data?.shipping} onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })} />
+      <RazorpayCard
+        initial={data?.razorpay as RazorpaySettings | undefined}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })}
+      />
+      <SmtpCard
+        initial={data?.smtp as SmtpSettings | undefined}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })}
+      />
+      <ShippingCard
+        initial={data?.shipping as ShippingSettings | undefined}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["app_settings"] })}
+      />
     </div>
   );
 }
@@ -74,7 +116,7 @@ function Section({
   description,
   children,
 }: {
-  icon: any;
+  icon: React.ElementType;
   title: string;
   description: string;
   children: React.ReactNode;
@@ -110,7 +152,9 @@ function Field({
         {label}
       </span>
       {children}
-      {hint ? <span className="mt-1 block text-xs text-primary/50">{hint}</span> : null}
+      {hint ? (
+        <span className="mt-1 block text-xs text-primary/50">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -150,12 +194,30 @@ function SecretInput({
   );
 }
 
-async function saveSetting(key: string, value: any) {
-  const { data: userRes } = await supabase.auth.getUser();
-  const { error } = await supabase
-    .from("app_settings")
-    .upsert({ key, value, updated_by: userRes.user?.id ?? null }, { onConflict: "key" });
-  if (error) throw error;
+async function saveSetting(key: string, value: unknown) {
+  // 1. Save to server API
+  const res = await fetch("/api/admin/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+  if (!res.ok) {
+    const d = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(d.error || "Failed to save settings");
+  }
+
+  // 2. Mirror to Supabase if possible
+  try {
+    const { data: userRes } = await supabase.auth.getUser();
+    await supabase
+      .from("app_settings")
+      .upsert(
+        { key, value, updated_by: userRes?.user?.id ?? null },
+        { onConflict: "key" },
+      );
+  } catch (err) {
+    console.warn("Could not mirror to Supabase app_settings:", err);
+  }
 }
 
 function SaveBtn({ saving }: { saving: boolean }) {
@@ -170,7 +232,116 @@ function SaveBtn({ saving }: { saving: boolean }) {
   );
 }
 
-function SmtpCard({ initial, onSaved }: { initial?: SmtpSettings; onSaved: () => void }) {
+function RazorpayCard({
+  initial,
+  onSaved,
+}: {
+  initial?: RazorpaySettings;
+  onSaved: () => void;
+}) {
+  const [s, setS] = useState<RazorpaySettings>({
+    key_id: "",
+    key_secret: "",
+    webhook_secret: "",
+    mode: "test",
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (initial) setS((prev) => ({ ...prev, ...initial }));
+  }, [initial]);
+
+  return (
+    <Section
+      icon={CreditCard}
+      title="Razorpay Payments"
+      description="Connect your real Razorpay account to accept live UPI, Cards, Netbanking, and Wallets."
+    >
+      <div className="mb-4 rounded-md bg-accent/10 p-3 text-xs text-accent-foreground flex items-center gap-2">
+        <ShieldCheck size={16} className="text-accent shrink-0" />
+        <span>
+          <strong>Live & Test Mode:</strong> When <strong>Live</strong> is
+          selected, real customer payments will be processed using your Live Key
+          ID & Secret. Key Secrets are securely stored server-side and never
+          exposed to the browser.
+        </span>
+      </div>
+
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setSaving(true);
+          try {
+            await saveSetting("razorpay", s);
+            toast.success("Razorpay settings saved successfully");
+            onSaved();
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to save");
+          } finally {
+            setSaving(false);
+          }
+        }}
+        className="grid gap-4 sm:grid-cols-2"
+      >
+        <Field label="Payment Mode">
+          <select
+            className={inputCls}
+            value={s.mode}
+            onChange={(e) =>
+              setS({ ...s, mode: e.target.value as "test" | "live" })
+            }
+          >
+            <option value="test">Test Mode (rzp_test_...)</option>
+            <option value="live">Live Mode (Real Customer Payments)</option>
+          </select>
+        </Field>
+
+        <Field label="Key ID" hint="Starts with rzp_test_ or rzp_live_">
+          <input
+            className={inputCls}
+            value={s.key_id}
+            onChange={(e) => setS({ ...s, key_id: e.target.value })}
+            placeholder="rzp_live_XXXXXXXXXXXXXX"
+          />
+        </Field>
+
+        <Field
+          label="Key Secret"
+          hint="Secret key from Razorpay Dashboard (never sent to client)"
+        >
+          <SecretInput
+            value={s.key_secret}
+            onChange={(v) => setS({ ...s, key_secret: v })}
+            placeholder="••••••••"
+          />
+        </Field>
+
+        <Field
+          label="Webhook Secret"
+          hint="Optional secret configured in Razorpay Webhooks"
+        >
+          <SecretInput
+            value={s.webhook_secret}
+            onChange={(v) => setS({ ...s, webhook_secret: v })}
+            placeholder="••••••••"
+          />
+        </Field>
+
+        <div className="sm:col-span-2">
+          <SaveBtn saving={saving} />
+        </div>
+      </form>
+    </Section>
+  );
+}
+
+function SmtpCard({
+  initial,
+  onSaved,
+}: {
+  initial?: SmtpSettings;
+  onSaved: () => void;
+}) {
   const [s, setS] = useState<SmtpSettings>({
     host: "",
     port: 587,
@@ -178,19 +349,19 @@ function SmtpCard({ initial, onSaved }: { initial?: SmtpSettings; onSaved: () =>
     password: "",
     from_email: "",
     from_name: "ChocoVibes",
-    secure: true,
+    secure: false,
   });
   const [saving, setSaving] = useState(false);
+
   useEffect(() => {
-    if (initial) setS({ ...s, ...initial });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (initial) setS((prev) => ({ ...prev, ...initial }));
   }, [initial]);
 
   return (
     <Section
       icon={Mail}
-      title="SMTP Email"
-      description="Used to send order confirmations, Corporate & B2B replies, and transactional emails."
+      title="SMTP Email Notifications"
+      description="Sends automated Order Confirmation, Payment Received, DTDC Shipment Tracking, and Delivery emails."
     >
       <form
         onSubmit={async (e) => {
@@ -198,10 +369,10 @@ function SmtpCard({ initial, onSaved }: { initial?: SmtpSettings; onSaved: () =>
           setSaving(true);
           try {
             await saveSetting("smtp", s);
-            toast.success("SMTP settings saved");
+            toast.success("SMTP email settings saved");
             onSaved();
-          } catch (err: any) {
-            toast.error(err.message ?? "Failed to save");
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to save");
           } finally {
             setSaving(false);
           }
@@ -209,26 +380,60 @@ function SmtpCard({ initial, onSaved }: { initial?: SmtpSettings; onSaved: () =>
         className="grid gap-4 sm:grid-cols-2"
       >
         <Field label="SMTP Host">
-          <input className={inputCls} value={s.host} onChange={(e) => setS({ ...s, host: e.target.value })} placeholder="smtp.gmail.com" />
+          <input
+            className={inputCls}
+            value={s.host}
+            onChange={(e) => setS({ ...s, host: e.target.value })}
+            placeholder="smtp.gmail.com or smtp.zoho.in"
+          />
         </Field>
         <Field label="Port">
-          <input type="number" className={inputCls} value={s.port} onChange={(e) => setS({ ...s, port: Number(e.target.value) })} placeholder="587" />
+          <input
+            type="number"
+            className={inputCls}
+            value={s.port}
+            onChange={(e) => setS({ ...s, port: Number(e.target.value) })}
+            placeholder="587"
+          />
         </Field>
-        <Field label="Username">
-          <input className={inputCls} value={s.username} onChange={(e) => setS({ ...s, username: e.target.value })} placeholder="chocovibes52@gmail.com" />
+        <Field label="Username / Email">
+          <input
+            className={inputCls}
+            value={s.username}
+            onChange={(e) => setS({ ...s, username: e.target.value })}
+            placeholder="orders@chocovibes.in"
+          />
         </Field>
         <Field label="Password / App Password">
-          <SecretInput value={s.password} onChange={(v) => setS({ ...s, password: v })} placeholder="••••••••" />
+          <SecretInput
+            value={s.password}
+            onChange={(v) => setS({ ...s, password: v })}
+            placeholder="••••••••"
+          />
         </Field>
-        <Field label="From Email">
-          <input className={inputCls} value={s.from_email} onChange={(e) => setS({ ...s, from_email: e.target.value })} placeholder="chocovibes52@gmail.com" />
+        <Field label="From Email Address">
+          <input
+            className={inputCls}
+            value={s.from_email}
+            onChange={(e) => setS({ ...s, from_email: e.target.value })}
+            placeholder="orders@chocovibes.in"
+          />
         </Field>
-        <Field label="From Name">
-          <input className={inputCls} value={s.from_name} onChange={(e) => setS({ ...s, from_name: e.target.value })} />
+        <Field label="From Sender Name">
+          <input
+            className={inputCls}
+            value={s.from_name}
+            onChange={(e) => setS({ ...s, from_name: e.target.value })}
+            placeholder="ChocoVibes"
+          />
         </Field>
         <label className="flex items-center gap-2 text-sm text-primary/80 sm:col-span-2">
-          <input type="checkbox" checked={s.secure} onChange={(e) => setS({ ...s, secure: e.target.checked })} />
-          Use TLS/SSL (recommended)
+          <input
+            type="checkbox"
+            checked={s.secure}
+            onChange={(e) => setS({ ...s, secure: e.target.checked })}
+          />
+          Use SSL (Port 465) / Check for direct TLS connection
         </label>
         <div className="sm:col-span-2">
           <SaveBtn saving={saving} />
@@ -238,88 +443,35 @@ function SmtpCard({ initial, onSaved }: { initial?: SmtpSettings; onSaved: () =>
   );
 }
 
-function RazorpayCard({ initial, onSaved }: { initial?: RazorpaySettings; onSaved: () => void }) {
-  const [s, setS] = useState<RazorpaySettings>({
-    key_id: "",
-    key_secret: "",
-    webhook_secret: "",
-    mode: "test",
-  });
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (initial) setS({ ...s, ...initial });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial]);
-
-  return (
-    <Section
-      icon={CreditCard}
-      title="Razorpay Payments"
-      description="Add your Razorpay API keys to accept online payments at checkout."
-    >
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setSaving(true);
-          try {
-            await saveSetting("razorpay", s);
-            toast.success("Razorpay settings saved");
-            onSaved();
-          } catch (err: any) {
-            toast.error(err.message ?? "Failed to save");
-          } finally {
-            setSaving(false);
-          }
-        }}
-        className="grid gap-4 sm:grid-cols-2"
-      >
-        <Field label="Mode">
-          <select
-            className={inputCls}
-            value={s.mode}
-            onChange={(e) => setS({ ...s, mode: e.target.value as "test" | "live" })}
-          >
-            <option value="test">Test</option>
-            <option value="live">Live</option>
-          </select>
-        </Field>
-        <Field label="Key ID" hint="Starts with rzp_test_ or rzp_live_">
-          <input className={inputCls} value={s.key_id} onChange={(e) => setS({ ...s, key_id: e.target.value })} placeholder="rzp_test_XXXXXXXXXX" />
-        </Field>
-        <Field label="Key Secret">
-          <SecretInput value={s.key_secret} onChange={(v) => setS({ ...s, key_secret: v })} placeholder="••••••••" />
-        </Field>
-        <Field label="Webhook Secret" hint="Optional — used to verify Razorpay webhooks">
-          <SecretInput value={s.webhook_secret} onChange={(v) => setS({ ...s, webhook_secret: v })} placeholder="••••••••" />
-        </Field>
-        <div className="sm:col-span-2">
-          <SaveBtn saving={saving} />
-        </div>
-      </form>
-    </Section>
-  );
-}
-
-function ShippingCard({ initial, onSaved }: { initial?: ShippingSettings; onSaved: () => void }) {
+function ShippingCard({
+  initial,
+  onSaved,
+}: {
+  initial?: ShippingSettings;
+  onSaved: () => void;
+}) {
   const [s, setS] = useState<ShippingSettings>({
-    provider: "shiprocket",
+    provider: "dtdc",
     api_key: "",
     api_secret: "",
     pickup_pincode: "395009",
     default_weight_g: 300,
-    enabled: false,
+    enabled: true,
+    free_shipping_threshold: 999,
+    standard_shipping_fee: 99,
+    default_courier: "DTDC",
   });
   const [saving, setSaving] = useState(false);
+
   useEffect(() => {
-    if (initial) setS({ ...s, ...initial });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (initial) setS((prev) => ({ ...prev, ...initial }));
   }, [initial]);
 
   return (
     <Section
       icon={Truck}
-      title="Shipping Integration"
-      description="Connect a shipping provider to generate labels and track orders."
+      title="Shipping & DTDC Courier Settings"
+      description="Configure DTDC as the default courier, free shipping rules, and tracking parameters."
     >
       <form
         onSubmit={async (e) => {
@@ -329,48 +481,60 @@ function ShippingCard({ initial, onSaved }: { initial?: ShippingSettings; onSave
             await saveSetting("shipping", s);
             toast.success("Shipping settings saved");
             onSaved();
-          } catch (err: any) {
-            toast.error(err.message ?? "Failed to save");
+          } catch (err: unknown) {
+            toast.error(err instanceof Error ? err.message : "Failed to save");
           } finally {
             setSaving(false);
           }
         }}
         className="grid gap-4 sm:grid-cols-2"
       >
-        <Field label="Provider">
+        <Field label="Default Courier Partner">
           <select
             className={inputCls}
-            value={s.provider}
-            onChange={(e) => setS({ ...s, provider: e.target.value })}
+            value={s.default_courier || "DTDC"}
+            onChange={(e) => setS({ ...s, default_courier: e.target.value })}
           >
-            <option value="shiprocket">Shiprocket</option>
-            <option value="delhivery">Delhivery</option>
-            <option value="bluedart">Blue Dart</option>
-            <option value="dtdc">DTDC</option>
-            <option value="manual">Manual / Self-ship</option>
+            <option value="DTDC">DTDC (Default)</option>
+            <option value="Delhivery">Delhivery</option>
+            <option value="Blue Dart">Blue Dart</option>
+            <option value="India Post">India Post</option>
+            <option value="XpressBees">XpressBees</option>
+            <option value="Shiprocket">Shiprocket</option>
           </select>
         </Field>
-        <Field label="Pickup Pincode">
-          <input className={inputCls} value={s.pickup_pincode} onChange={(e) => setS({ ...s, pickup_pincode: e.target.value })} placeholder="395009" />
+
+        <Field label="Pickup Warehouse Pincode">
+          <input
+            className={inputCls}
+            value={s.pickup_pincode}
+            onChange={(e) => setS({ ...s, pickup_pincode: e.target.value })}
+            placeholder="395009"
+          />
         </Field>
-        <Field label="API Key / Email">
-          <input className={inputCls} value={s.api_key} onChange={(e) => setS({ ...s, api_key: e.target.value })} placeholder="account@example.com" />
-        </Field>
-        <Field label="API Secret / Password">
-          <SecretInput value={s.api_secret} onChange={(v) => setS({ ...s, api_secret: v })} placeholder="••••••••" />
-        </Field>
-        <Field label="Default Package Weight (grams)">
+
+        <Field label="Free Shipping Threshold (₹)">
           <input
             type="number"
             className={inputCls}
-            value={s.default_weight_g}
-            onChange={(e) => setS({ ...s, default_weight_g: Number(e.target.value) })}
+            value={s.free_shipping_threshold || 999}
+            onChange={(e) =>
+              setS({ ...s, free_shipping_threshold: Number(e.target.value) })
+            }
           />
         </Field>
-        <label className="flex items-center gap-2 text-sm text-primary/80 sm:col-span-2">
-          <input type="checkbox" checked={s.enabled} onChange={(e) => setS({ ...s, enabled: e.target.checked })} />
-          Enable shipping integration
-        </label>
+
+        <Field label="Standard Shipping Fee (₹)">
+          <input
+            type="number"
+            className={inputCls}
+            value={s.standard_shipping_fee || 99}
+            onChange={(e) =>
+              setS({ ...s, standard_shipping_fee: Number(e.target.value) })
+            }
+          />
+        </Field>
+
         <div className="sm:col-span-2">
           <SaveBtn saving={saving} />
         </div>

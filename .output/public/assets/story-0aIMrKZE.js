@@ -1,0 +1,1 @@
+var e=`/assets/story-Csk-Vu3A.jpg`;export{e as t};

@@ -62,7 +62,9 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link to="/products/$slug" params={{ slug: product.slug }}>
-            <h3 className="font-display text-xl text-primary truncate">{product.name}</h3>
+            <h3 className="font-display text-xl text-primary truncate">
+              {product.name}
+            </h3>
           </Link>
           <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
             {product.shortDescription}
@@ -74,7 +76,9 @@ export function ProductCard({ product }: { product: Product }) {
               {formatINR(product.price)}
             </div>
           )}
-          <div className="text-sm font-medium text-primary">{formatINR(price)}</div>
+          <div className="text-sm font-medium text-primary">
+            {formatINR(price)}
+          </div>
         </div>
       </div>
     </div>

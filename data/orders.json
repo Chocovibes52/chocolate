@@ -1,0 +1,37 @@
+[
+  {
+    "user_id": null,
+    "customer_name": "Test Customer",
+    "customer_email": "test@example.com",
+    "customer_phone": "9999999999",
+    "address": "123 Main St",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "pincode": "400001",
+    "subtotal": 299,
+    "shipping": 99,
+    "total": 398,
+    "payment_method": "Razorpay",
+    "payment_status": "Failed",
+    "status": "Cancelled",
+    "notes": null,
+    "courier": "DTDC",
+    "tracking_id": "",
+    "tracking_url": "",
+    "items": [
+      {
+        "id": "item_1789966209115_da5pr",
+        "order_id": "",
+        "product_slug": "cacao-noir-original",
+        "product_name": "ChocoVibes Original",
+        "unit_price": 299,
+        "quantity": 1,
+        "line_total": 299
+      }
+    ],
+    "id": "597f3e5c-3506-40ee-9a0f-746b5b87e1da",
+    "order_number": "CV-2026-000001",
+    "created_at": "2026-09-21T04:50:09.116Z",
+    "updated_at": "2026-09-21T04:50:09.117Z"
+  }
+]

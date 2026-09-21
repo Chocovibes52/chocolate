@@ -1,0 +1,22 @@
+{
+  "razorpay": {
+    "mode": "test",
+    "key_id": "",
+    "key_secret": "",
+    "webhook_secret": ""
+  },
+  "smtp": {
+    "host": "",
+    "port": 587,
+    "username": "",
+    "password": "",
+    "from_email": "orders@chocovibes.in",
+    "from_name": "ChocoVibes",
+    "secure": false
+  },
+  "shipping": {
+    "free_shipping_threshold": 999,
+    "standard_shipping_fee": 99,
+    "default_courier": "DTDC"
+  }
+}

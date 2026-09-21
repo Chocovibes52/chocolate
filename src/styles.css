@@ -1,309 +1,288 @@
-@import "tailwindcss" source(none);
-@source "../src";
-@import "tw-animate-css";
+@import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
+@layer base {
+  :root {
+    --background: #fdfbf7;
+    --foreground: #221814;
 
-/*
- * ChocoVibes — Premium Chocolate Brand Design System.
- * All color values use oklch. Never hardcode colors in components.
- */
+    --card: #ffffff;
+    --card-foreground: #221814;
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 16px);
+    --popover: #ffffff;
+    --popover-foreground: #221814;
 
-  --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --primary: #2a1d17;
+    --primary-foreground: #faf6f0;
+
+    --secondary: #f4efe8;
+    --secondary-foreground: #2a1d17;
+
+    --muted: #efe9e0;
+    --muted-foreground: #786b63;
+
+    --accent: #c69234;
+    --accent-foreground: #1c130d;
+
+    --destructive: #b91c1c;
+    --destructive-foreground: #ffffff;
+
+    --border: #e6dfd5;
+    --input: #e6dfd5;
+    --ring: #c69234;
+
+    --radius: 0.75rem;
+
+    --gold: #c69234;
+    --gold-light: #dfb259;
+    --admin-topbar: #160e0a;
+    --admin-sidebar: #1e130e;
+
+    --shadow-card: 0 10px 30px -10px rgba(42, 29, 23, 0.08), 0 4px 12px -4px rgba(42, 29, 23, 0.04);
+    --shadow-luxe: 0 24px 48px -12px rgba(42, 29, 23, 0.16);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@theme {
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
-  --color-cocoa: var(--cocoa);
-  --color-cocoa-deep: var(--cocoa-deep);
-  --color-cream: var(--cream);
-  --color-cream-soft: var(--cream-soft);
-  --color-gold: var(--gold);
-  --color-gold-soft: var(--gold-soft);
-
-  --shadow-luxe: 0 25px 60px -25px color-mix(in oklab, var(--cocoa-deep) 45%, transparent);
-  --shadow-card: 0 12px 32px -18px color-mix(in oklab, var(--cocoa-deep) 30%, transparent);
 }
 
-:root {
-  --radius: 0.5rem;
-
-  /* Brand palette — Dark Chocolate #2E1B12, Brown #5A3825, Cream #F8F3EC, Gold #C89B3C */
-  --cocoa-deep: oklch(0.22 0.035 45);      /* #2E1B12 */
-  --cocoa: oklch(0.36 0.055 45);           /* #5A3825 */
-  --cream: oklch(0.965 0.012 75);          /* #F8F3EC */
-  --cream-soft: oklch(0.985 0.008 75);
-  --gold: oklch(0.72 0.13 75);             /* #C89B3C */
-  --gold-soft: oklch(0.86 0.08 80);
-
-  --background: var(--cream);
-  --foreground: var(--cocoa-deep);
-  --card: oklch(1 0 0);
-  --card-foreground: var(--cocoa-deep);
-  --popover: oklch(1 0 0);
-  --popover-foreground: var(--cocoa-deep);
-  --primary: var(--cocoa-deep);
-  --primary-foreground: var(--cream);
-  --secondary: var(--cream-soft);
-  --secondary-foreground: var(--cocoa-deep);
-  --muted: oklch(0.94 0.012 75);
-  --muted-foreground: oklch(0.45 0.03 45);
-  --accent: var(--gold);
-  --accent-foreground: var(--cocoa-deep);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.015 70);
-  --input: oklch(0.9 0.015 70);
-  --ring: var(--gold);
-}
-
-.dark {
-  --background: var(--cocoa-deep);
-  --foreground: var(--cream);
-  --card: oklch(0.28 0.04 45);
-  --card-foreground: var(--cream);
-  --popover: oklch(0.28 0.04 45);
-  --popover-foreground: var(--cream);
-  --primary: var(--gold);
-  --primary-foreground: var(--cocoa-deep);
-  --secondary: oklch(0.3 0.04 45);
-  --secondary-foreground: var(--cream);
-  --muted: oklch(0.3 0.04 45);
-  --muted-foreground: oklch(0.78 0.02 70);
-  --accent: var(--gold);
-  --accent-foreground: var(--cocoa-deep);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: var(--gold);
-}
-
-@layer base {
-  * { border-color: var(--color-border); }
-  html { scroll-behavior: smooth; }
-  body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
-    -webkit-font-smoothing: antialiased;
-  }
-  h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
-}
-
-@utility container-luxe {
-  margin-inline: auto;
-  max-width: 1280px;
-  padding-inline: 1.25rem;
-  @media (min-width: 768px) { padding-inline: 2rem; }
-  @media (min-width: 1280px) { padding-inline: 3rem; }
-}
-
-@utility gold-underline {
-  position: relative;
-  &::after {
-    content: "";
-    position: absolute;
-    left: 0; bottom: -4px;
-    width: 100%; height: 1px;
-    background: var(--gold);
-    transform: scaleX(0);
-    transform-origin: right;
-    transition: transform 0.4s ease;
-  }
-  &:hover::after { transform: scaleX(1); transform-origin: left; }
-}
-
-@utility btn-gold {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.75rem;
-  background: var(--gold);
-  color: var(--cocoa-deep);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  border-radius: 9999px;
-  transition: all 0.3s ease;
-  &:hover { background: color-mix(in oklab, var(--gold) 85%, var(--cocoa-deep)); transform: translateY(-1px); box-shadow: 0 10px 24px -12px color-mix(in oklab, var(--gold) 60%, transparent); }
-}
-
-@utility btn-cocoa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.75rem;
-  background: var(--cocoa-deep);
-  color: var(--cream);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  border-radius: 9999px;
-  transition: all 0.3s ease;
-  &:hover { background: var(--cocoa); transform: translateY(-1px); }
-}
-
-@utility btn-outline-cocoa {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.75rem;
-  background: transparent;
-  color: var(--cocoa-deep);
-  border: 1px solid var(--cocoa-deep);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  border-radius: 9999px;
-  transition: all 0.3s ease;
-  &:hover { background: var(--cocoa-deep); color: var(--cream); }
-}
-
-@utility eyebrow {
-  display: inline-block;
-  font-size: 0.7rem;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--gold);
-  font-weight: 500;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-
-@utility animate-fade-up { animation: fadeUp 0.8s ease-out both; }
-@utility animate-fade-in-slow { animation: fadeIn 1.2s ease-out both; }
-
-/* ============================================================
-   Admin console — neutral, Shopify-Polaris-like scoped theme.
-   Applied by wrapping the admin layout in `.admin-shell`.
-   ============================================================ */
-.admin-shell {
-  --radius: 0.5rem;
-  --background: oklch(0.968 0 0);
-  --foreground: oklch(0.28 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.28 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.28 0 0);
-  --primary: oklch(0.32 0 0);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.94 0 0);
-  --secondary-foreground: oklch(0.32 0 0);
-  --muted: oklch(0.955 0 0);
-  --muted-foreground: oklch(0.52 0 0);
-  --accent: oklch(0.52 0.19 260);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.52 0.2 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9 0 0);
-  --input: oklch(0.9 0 0);
-  --ring: oklch(0.52 0.19 260);
-
-  --admin-sidebar: oklch(0.24 0 0);
-  --admin-sidebar-foreground: oklch(0.88 0 0);
-  --admin-topbar: oklch(0.18 0 0);
-
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-}
-
-.admin-shell h1,
-.admin-shell h2,
-.admin-shell h3,
-.admin-shell h4 {
-  font-family: var(--font-sans);
-  letter-spacing: -0.01em;
-  font-weight: 600;
-}
-
-@utility admin-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px oklch(0 0 0 / 6%);
-}
-
-@utility admin-input {
+/* Custom Artisan Utility Classes */
+.container-luxe {
   width: 100%;
-  border: 1px solid var(--border);
-  background: var(--card);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
-  color: var(--foreground);
-  outline: none;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
-  &:focus { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent); }
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
 }
 
-@utility admin-btn {
+@media (min-width: 768px) {
+  .container-luxe {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-luxe {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+.gold-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.gold-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0;
+  height: 1.5px;
+  background-color: var(--gold);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gold-underline:hover::after,
+.gold-underline.active::after {
+  width: 100%;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.btn-gold {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--foreground);
-  transition: background 0.15s ease;
-  &:hover { background: var(--muted); }
-  &:disabled { opacity: 0.55; }
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background-color: var(--gold);
+  color: #1a120e;
+  padding: 0.85rem 1.75rem;
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px 0 rgba(198, 146, 52, 0.25);
+  cursor: pointer;
 }
 
-@utility admin-btn-primary {
+.btn-gold:hover {
+  background-color: #d8a542;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px 0 rgba(198, 146, 52, 0.35);
+}
+
+.btn-cocoa {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  background: var(--primary);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background-color: var(--primary);
   color: var(--primary-foreground);
+  padding: 0.85rem 1.75rem;
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px 0 rgba(42, 29, 23, 0.2);
+  cursor: pointer;
+}
+
+.btn-cocoa:hover {
+  background-color: #3d2c23;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px 0 rgba(42, 29, 23, 0.3);
+}
+
+.btn-cocoa:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-outline-cocoa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background-color: transparent;
+  color: var(--primary);
   border: 1px solid var(--primary);
-  transition: opacity 0.15s ease;
-  &:hover { opacity: 0.9; }
-  &:disabled { opacity: 0.55; }
+  padding: 0.85rem 1.75rem;
+  border-radius: 9999px;
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.btn-outline-cocoa:hover {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Admin Dashboard Specific Styles (Live Admin Visual Design) */
+.admin-shell {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-sans);
+}
+
+.admin-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background-color: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.admin-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.admin-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background-color: #0f172a;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.admin-btn-primary:hover {
+  background-color: #1e293b;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
 }

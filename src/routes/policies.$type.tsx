@@ -57,11 +57,21 @@ function PolicyPage() {
   return (
     <main className="container-luxe py-20 max-w-3xl">
       <div className="eyebrow">Policy</div>
-      <h1 className="mt-3 font-display text-5xl text-primary">{policy.title}</h1>
+      <h1 className="mt-3 font-display text-5xl text-primary">
+        {policy.title}
+      </h1>
       <div className="mt-8 space-y-6 text-muted-foreground leading-relaxed">
-        {policy.body.map((p: string, i: number) => <p key={i}>{p}</p>)}
+        {policy.body.map((p, i) => (
+          <p key={i}>{p}</p>
+        ))}
       </div>
-      <p className="mt-10 text-xs text-muted-foreground">Last updated: {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long" })}</p>
+      <p className="mt-10 text-xs text-muted-foreground">
+        Last updated:{" "}
+        {new Date().toLocaleDateString("en-IN", {
+          year: "numeric",
+          month: "long",
+        })}
+      </p>
     </main>
   );
 }
